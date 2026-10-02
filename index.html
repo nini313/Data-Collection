@@ -141,7 +141,7 @@
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
                     video: { width: 1280, height: 720 },
-                    audio: true // 加入麥克風音訊（若不需要可改為 false）
+                    audio: false // 加入麥克風音訊（若不需要可改為 false）
                 });
                 videoElement.srcObject = stream;
 
