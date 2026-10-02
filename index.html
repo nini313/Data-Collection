@@ -30,7 +30,7 @@
         .film-container {
             position: relative;
             width: 100%;
-            max-width: 874px; /* 限制最大寬度 */
+            max-width: 874px;
             margin: auto;
         }
         /* 嵌入影片 iframe 設置 */
@@ -70,13 +70,12 @@
     <div class="buttons">
         <button id="startRecording">開始錄影</button>
         <button id="stopRecording" disabled>停止錄影</button>
-        <a id="downloadRecording" href="#" download="recording.webm" disabled>
+        <a id="downloadRecording" href="#" download="recording.mp4">
             <button disabled>下載錄影</button>
         </a>
     </div>
 
     <h2>YouTube 影片</h2>
-    <!-- 使用 iframe 嵌入影片 -->
     <div class="film-container">
         <iframe
             src="https://www.youtube.com/embed/68a98R1V18g" 
@@ -98,9 +97,11 @@
 
         let mediaRecorder;
         let recordedChunks = [];
-        let recordingTimer; // 記錄計時器
-        let questionTimers = []; // 問題顯示計時器
-        const maxRecordingTime = 10 * 60 * 1000; // 10 分鐘 (以毫秒為單位)
+        let recordingTimer;
+        let questionTimers = [];
+        let selectedMimeType = "";
+        let fileExtension = "mp4";
+        const maxRecordingTime = 10 * 60 * 1000;
 
         const questions = [
             { time: 3 * 60 * 1000, text: "Q1：請分享你今天遇到什麼開心的事情？" },
@@ -108,26 +109,47 @@
             { time: 8 * 60 * 1000, text: "Q3：你對未來有什麼規劃？" }
         ];
 
-        // 顯示問題的函數
+        // 偵測支援的 MP4 格式，若不支援則降級至 WebM
+        function getSupportedMimeType() {
+            const types = [
+                "video/mp4;codecs=avc1,mp4a.40.2",
+                "video/mp4;codecs=h264",
+                "video/mp4",
+                "video/webm;codecs=vp9,opus",
+                "video/webm;codecs=vp8,opus",
+                "video/webm"
+            ];
+
+            for (const type of types) {
+                if (MediaRecorder.isTypeSupported(type)) {
+                    return type;
+                }
+            }
+            return "";
+        }
+
         function showQuestion(question) {
             overlay.textContent = question.text;
             overlay.style.display = "block";
 
             setTimeout(() => {
                 overlay.style.display = "none";
-            }, 15000); // 15 秒後隱藏
+            }, 15000);
         }
 
-        // 請求相機權限並顯示即時畫面
         async function startCamera() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { width: 1280, height: 720 } // 設定相機解析度為 1280x720
+                    video: { width: 1280, height: 720 },
+                    audio: true // 加入麥克風音訊（若不需要可改為 false）
                 });
                 videoElement.srcObject = stream;
 
-                // 設置 MediaRecorder 來錄影
-                mediaRecorder = new MediaRecorder(stream);
+                selectedMimeType = getSupportedMimeType();
+                fileExtension = selectedMimeType.includes("mp4") ? "mp4" : "webm";
+                
+                const options = selectedMimeType ? { mimeType: selectedMimeType } : {};
+                mediaRecorder = new MediaRecorder(stream, options);
                 
                 mediaRecorder.ondataavailable = (event) => {
                     if (event.data.size > 0) {
@@ -136,14 +158,14 @@
                 };
 
                 mediaRecorder.onstop = () => {
-                    const blob = new Blob(recordedChunks, { type: "video/webm" });
+                    const blob = new Blob(recordedChunks, { type: selectedMimeType || "video/mp4" });
                     recordedChunks = [];
                     const videoURL = URL.createObjectURL(blob);
                     recordedVideo.src = videoURL;
 
-                    // 啟用下載按鈕
+                    // 設定下載檔名與連結
                     downloadButton.href = videoURL;
-                    downloadButton.download = "recording.webm";
+                    downloadButton.download = `recording.${fileExtension}`;
                     downloadButton.querySelector("button").disabled = false;
                 };
             } catch (error) {
@@ -151,14 +173,12 @@
             }
         }
 
-        // 開始錄影
         startButton.addEventListener("click", () => {
             recordedChunks = [];
             mediaRecorder.start();
             startButton.disabled = true;
             stopButton.disabled = false;
 
-            // 設置錄影計時器，10 分鐘後自動停止錄影
             recordingTimer = setTimeout(() => {
                 mediaRecorder.stop();
                 startButton.disabled = false;
@@ -166,26 +186,22 @@
                 alert("錄影時間已達 10 分鐘，錄影已自動停止！");
             }, maxRecordingTime);
 
-            // 設定問題顯示的計時器
             questions.forEach((question) => {
                 const timer = setTimeout(() => showQuestion(question), question.time);
                 questionTimers.push(timer);
             });
         });
 
-        // 停止錄影
         stopButton.addEventListener("click", () => {
             mediaRecorder.stop();
             startButton.disabled = false;
             stopButton.disabled = true;
 
-            // 清除計時器
             clearTimeout(recordingTimer);
             questionTimers.forEach((timer) => clearTimeout(timer));
             questionTimers = [];
         });
 
-        // 初始化
         startCamera();
     </script>
 </body>
