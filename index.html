@@ -24,16 +24,16 @@
             max-height: 720px;
             background-color: #000;
         }
-        /* 錄影計時標籤樣式 */
+        /* 錄影計時標籤樣式：修改為正上方置中 */
         .timer-badge {
             display: none;
             position: absolute;
             top: 20px;
-            left: 50px;
+            left: 50%;
             transform: translateX(-50%); /* 水平置中關鍵 */
             background-color: rgba(0, 0, 0, 0.7);
             color: #ffffff;
-            padding: 6px 14px;
+            padding: 6px 16px;
             border-radius: 20px;
             font-size: 16px;
             font-weight: bold;
@@ -41,6 +41,7 @@
             align-items: center;
             gap: 8px;
             z-index: 10;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
         }
         /* 紅點閃爍動畫 */
         .record-dot {
