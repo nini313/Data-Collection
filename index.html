@@ -12,7 +12,7 @@
             width: 100%;
         }
         .video-container {
-            position: relative; /* 讓計時標籤能相對於此區域定位 */
+            position: relative; /* 讓計時標籤能定位在畫面中 */
             flex: 1;
             padding: 10px;
             box-sizing: border-box;
@@ -24,16 +24,16 @@
             max-height: 720px;
             background-color: #000;
         }
-        /* 錄影計時標籤：移至畫面正上方置中 */
+        /* 錄影計時標籤樣式 */
         .timer-badge {
             display: none;
             position: absolute;
             top: 20px;
-            left: 50%;
-            transform: translateX(-50%); /* 水平置中 */
-            background-color: rgba(0, 0, 0, 0.75);
+            left: 50px;
+            transform: translateX(-50%); /* 水平置中關鍵 */
+            background-color: rgba(0, 0, 0, 0.7);
             color: #ffffff;
-            padding: 6px 16px;
+            padding: 6px 14px;
             border-radius: 20px;
             font-size: 16px;
             font-weight: bold;
@@ -41,7 +41,6 @@
             align-items: center;
             gap: 8px;
             z-index: 10;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
         }
         /* 紅點閃爍動畫 */
         .record-dot {
@@ -93,7 +92,7 @@
     <div class="container">
         <div class="video-container">
             <h2>即時相機畫面</h2>
-            <!-- 置中的錄製計時標籤 -->
+            <!-- 錄製計時標籤 -->
             <div id="timerBadge" class="timer-badge">
                 <span class="record-dot"></span>
                 <span id="timerText">REC 00:00</span>
@@ -143,7 +142,7 @@
         let fileExtension = "mp4";
         const maxRecordingTime = 10 * 60 * 1000;
 
-        // 計時器變數
+        // 計時器相關變數
         let timerInterval = null;
         let startTime = 0;
 
@@ -153,7 +152,7 @@
             { time: 8 * 60 * 1000, text: "Q3：你對未來有什麼規劃？" }
         ];
 
-        // 格式化秒數為 mm:ss (超過 1 小時則為 hh:mm:ss)
+        // 格式化秒數為 mm:ss
         function formatDuration(seconds) {
             const hrs = Math.floor(seconds / 3600);
             const mins = Math.floor((seconds % 3600) / 60);
@@ -166,6 +165,7 @@
             return `${pad(mins)}:${pad(secs)}`;
         }
 
+        // 啟動計時器
         function startRecordingTimer() {
             startTime = Date.now();
             timerText.textContent = "REC 00:00";
@@ -176,3 +176,113 @@
                 timerText.textContent = `REC ${formatDuration(elapsedSeconds)}`;
             }, 1000);
         }
+
+        // 停止計時器
+        function stopRecordingTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+            timerBadge.style.display = "none";
+        }
+
+        // 偵測支援的 MP4 格式，若不支援則降級至 WebM
+        function getSupportedMimeType() {
+            const types = [
+                "video/mp4;codecs=avc1,mp4a.40.2",
+                "video/mp4;codecs=h264",
+                "video/mp4",
+                "video/webm;codecs=vp9,opus",
+                "video/webm;codecs=vp8,opus",
+                "video/webm"
+            ];
+
+            for (const type of types) {
+                if (MediaRecorder.isTypeSupported(type)) {
+                    return type;
+                }
+            }
+            return "";
+        }
+
+        function showQuestion(question) {
+            overlay.textContent = question.text;
+            overlay.style.display = "block";
+
+            setTimeout(() => {
+                overlay.style.display = "none";
+            }, 15000);
+        }
+
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: 1280, height: 720 },
+                    audio: false // 加入麥克風音訊（若不需要可改為 false）
+                });
+                videoElement.srcObject = stream;
+
+                selectedMimeType = getSupportedMimeType();
+                fileExtension = selectedMimeType.includes("mp4") ? "mp4" : "webm";
+                
+                const options = selectedMimeType ? { mimeType: selectedMimeType } : {};
+                mediaRecorder = new MediaRecorder(stream, options);
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        recordedChunks.push(event.data);
+                    }
+                };
+
+                mediaRecorder.onstop = () => {
+                    stopRecordingTimer(); // 錄製停止時關閉計時器
+                    const blob = new Blob(recordedChunks, { type: selectedMimeType || "video/mp4" });
+                    recordedChunks = [];
+                    const videoURL = URL.createObjectURL(blob);
+                    recordedVideo.src = videoURL;
+
+                    // 設定下載檔名與連結
+                    downloadButton.href = videoURL;
+                    downloadButton.download = `recording.${fileExtension}`;
+                    downloadButton.querySelector("button").disabled = false;
+                };
+            } catch (error) {
+                console.error("無法訪問相機:", error);
+            }
+        }
+
+        startButton.addEventListener("click", () => {
+            recordedChunks = [];
+            mediaRecorder.start();
+            startRecordingTimer(); // 開始計時
+
+            startButton.disabled = true;
+            stopButton.disabled = false;
+
+            recordingTimer = setTimeout(() => {
+                mediaRecorder.stop();
+                startButton.disabled = false;
+                stopButton.disabled = true;
+                alert("錄影時間已達 10 分鐘，錄影已自動停止！");
+            }, maxRecordingTime);
+
+            questions.forEach((question) => {
+                const timer = setTimeout(() => showQuestion(question), question.time);
+                questionTimers.push(timer);
+            });
+        });
+
+        stopButton.addEventListener("click", () => {
+            mediaRecorder.stop();
+            startButton.disabled = false;
+            stopButton.disabled = true;
+
+            clearTimeout(recordingTimer);
+            questionTimers.forEach((timer) => clearTimeout(timer));
+            questionTimers = [];
+        });
+
+        startCamera();
+    </script>
+</body>
+</html>
